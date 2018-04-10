@@ -20,7 +20,8 @@ service Suggestion {
     rpc StopSuggestion(StopSuggestionRequest) returns (StopSuggestionReply);
 }
 
-service AutoStopping {
+service EarlyStopping {
+    rpc ShouldStoppingTrial(ShouldStoppingTrialRequest) returns (ShouldStoppingTrialReply);
 }
 
 enum ParameterType {
@@ -242,4 +243,12 @@ message StopSuggestionRequest {
 }
 
 message StopSuggestionReply {
+}
+
+message ShouldStoppingTrialRequest {
+	string study_id = 1;
+}
+
+message ShouldStoppingTrialReply {
+	repeated Trial trials = 1;
 }
