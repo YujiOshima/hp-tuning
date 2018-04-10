@@ -299,3 +299,10 @@ func (d *KubernetesWorkerInterface) CleanWorkers(studyId string) error {
 	delete(d.CompletedTrialList, studyId)
 	return nil
 }
+func (d *KubernetesWorkerInterface) CompleteTrial(studyId string, tID string, iscomplete bool) error {
+	jcl := d.clientset.BatchV1().Jobs(apiv1.NamespaceDefault)
+	pcl := d.clientset.CoreV1().Pods(apiv1.NamespaceDefault)
+	jcl.Delete(tID, &metav1.DeleteOptions{})
+	pl, _ := pcl.List(metav1.ListOptions{LabelSelector: "job-name=" + tID})
+	pcl.Delete(pl.Items[0].ObjectMeta.Name, &metav1.DeleteOptions{})
+}

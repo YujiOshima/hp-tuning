@@ -198,6 +198,13 @@ func (d *db_conn) CreateStudy(in *api.StudyConfig) (string, error) {
 			log.Printf("Error marshalling %v: %v", elem, err)
 		}
 	}
+	earlystopping_parameters := make([]string, len(in.EarlyStoppingParameters))
+	for i, elem := range in.EarlyStoppingParameters {
+		earlystopping_parameters[i], err = (&jsonpb.Marshaler{}).MarshalToString(elem)
+		if err != nil {
+			log.Printf("Error marshalling %v: %v", elem, err)
+		}
+	}
 	var mconf string = ""
 	if in.Mount != nil {
 		mconf, err = (&jsonpb.Marshaler{}).MarshalToString(in.Mount)
@@ -214,13 +221,22 @@ func (d *db_conn) CreateStudy(in *api.StudyConfig) (string, error) {
 			continue
 		}
 	}
+	var isin bool = false
+	for _, m := range in.Metrics {
+		if m == in.ObjectiveValueName {
+			isin = true
+		}
+	}
+	if !isin {
+		in.Metrics = append(in.Metrics, in.ObjectiveValueName)
+	}
 
 	var study_id string
 	i := 3
 	for true {
 		study_id = generate_randid()
 		_, err := d.db.Exec(
-			"INSERT INTO studies VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO studies VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			study_id,
 			in.Name,
 			in.Owner,
@@ -228,9 +244,10 @@ func (d *db_conn) CreateStudy(in *api.StudyConfig) (string, error) {
 			in.OptimizationGoal,
 			configs,
 			in.SuggestAlgorithm,
-			in.AutostopAlgorithm,
+			in.EarlyStoppingAlgorithm,
 			in.StudyTaskName,
 			strings.Join(suggestion_parameters, ",\n"),
+			strings.Join(earlystopping_parameters, ",\n"),
 			strings.Join(tags, ",\n"),
 			in.ObjectiveValueName,
 			strings.Join(in.Metrics, ",\n"),

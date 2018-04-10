@@ -32,8 +32,9 @@ import (
 )
 
 const (
-	k8s_namespace = "katib"
-	port          = "0.0.0.0:6789"
+	k8s_namespace            = "katib"
+	port                     = "0.0.0.0:6789"
+	defaultEarlyStopInterval = 60
 )
 
 var init_db = flag.Bool("init", false, "Initialize DB")
@@ -93,6 +94,19 @@ func (s *server) trialIteration(conf *pb.StudyConfig, study_id string, sCh study
 	defer delete(s.StudyChList, study_id)
 	defer s.wIF.CleanWorkers(study_id)
 	tm := time.NewTimer(1 * time.Second)
+	ei := 0
+	for _, ec := range conf.EarlyStoppingParameters {
+		if ec.Name == "CheckInterval" {
+			ei, err = strconv.Atoi(ec.Value)
+			if err != nil {
+				ei = 0
+			}
+		}
+	}
+	if ei == 0 {
+		ei == defaultEarlyStopInterval
+	}
+	estm := time.NewTimer(ei * time.Second)
 	log.Printf("Study %v start.", study_id)
 	log.Printf("Study conf %v", conf)
 	for {
@@ -137,6 +151,18 @@ func (s *server) trialIteration(conf *pb.StudyConfig, study_id string, sCh study
 				}
 				tm.Reset(1 * time.Second)
 			}
+		case <-estm.C:
+			ret, err := s.EarlyStopping(context.Background(), &pb.EarlyStoppingRequest{StudyId: study_id, EarlyStoppingAlgorithm: conf.EarlyStoppingAlgorithm})
+			if err != nil {
+				log.Printf("Early Stopping Error: %v", err)
+			} else {
+				if len(ret.Trials) > 0 {
+					for _, t := range ret.Trials {
+						s.CompleteTrial(context.Background(), &pb.CompleteTrialRequest{StudyId: study_id, TrialId: t.TrialID, IsComplete: false})
+					}
+				}
+			}
+			estm.Reset(ei * time.Second)
 		case <-sCh.stopCh:
 			log.Printf("Study %v is stopped.", study_id)
 			for _, t := range s.wIF.GetRunningTrials(study_id) {
@@ -151,6 +177,10 @@ func (s *server) trialIteration(conf *pb.StudyConfig, study_id string, sCh study
 }
 
 func (s *server) CreateStudy(ctx context.Context, in *pb.CreateStudyRequest) (*pb.CreateStudyReply, error) {
+	if in == nil || in.StudyConfig == nil {
+		return &pb.CreateStudyReply{}, errors.New("StudyConfig is missing.")
+	}
+
 	if in.StudyConfig.ObjectiveValueName == "" {
 		return &pb.CreateStudyReply{}, errors.New("Objective_Value_Name is required.")
 	}
@@ -280,12 +310,36 @@ func (s *server) SuggestTrials(ctx context.Context, in *pb.SuggestTrialsRequest)
 	return &pb.SuggestTrialsReply{Trials: r.Trials, Completed: r.Completed}, nil
 }
 
-func (s *server) CompleteTrial(context.Context, *pb.CompleteTrialRequest) (*pb.CompleteTrialReply, error) {
-	return nil, errors.New("not implemented")
+func (s *server) CompleteTrial(ctx context.Context, in *pb.CompleteTrialRequest) (*pb.CompleteTrialReply, error) {
+	_, err := s.wIF.CompleteTrial(in.StudyId, in.TrialId, in.IsComplete)
+	return &pb.CompleteTrialReply{}, err
 }
-func (s *server) ShouldTrialStop(context.Context, *pb.ShouldTrialStopRequest) (*pb.ShouldTrialStopReply, error) {
-	return nil, errors.New("not implemented")
+
+func (s *server) EarlyStopping(ctx context.Context, in *pb.EarlyStoppingRequest) (*pb.EarlyStoppingReply, error) {
+	study, err := dbIf.GetStudyConfig(in.StudyId)
+	if err != nil {
+		return nil, err
+	}
+	if in.EarlyStoppingAlgorithm == "" || in.EarlyStoppingAlgorithm == "none" {
+		return &pb.EarlyStoppingReply{}
+	}
+	conn, err := grpc.Dial("vizier-earlystopping-"+suggest_algo+":6789", grpc.WithInsecure())
+	if err != nil {
+		return &pb.EarlyStoppingReply{}, err
+	}
+
+	defer conn.Close()
+	c := pb.NewEarlyStoppingClient(conn)
+	req := &pb.ShouldTrialStopRequest{StudyId: in.StudyId}
+	r, err := c.ShouldTrialStop(context.Background(), req)
+	if err != nil {
+		return &pb.SuggestTrialsReply{Completed: false}, err
+	}
+
+	// TODO: do async
+	return &pb.EarlyStoppingReply{Trials: r.Trials}, nil
 }
+
 func (s *server) GetObjectValue(context.Context, *pb.GetObjectValueRequest) (*pb.GetObjectValueReply, error) {
 	return nil, errors.New("not implemented")
 }
