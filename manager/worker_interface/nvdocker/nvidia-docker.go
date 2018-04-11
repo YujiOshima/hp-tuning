@@ -506,7 +506,7 @@ func (n *NvDockerWorkerInterface) CompleteTrial(studyId string, tID string, isco
 	if err != nil {
 		return err
 	}
-	delete(n.tidToCid, t.TrialId)
-	n.ngm.ReleaseGPU(t.TrialId)
+	delete(n.tidToCid, tID)
+	n.ngm.ReleaseGPU(tID)
 	return nil
 }

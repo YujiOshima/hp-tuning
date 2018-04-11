@@ -13,6 +13,6 @@ const (
 
 // EarlyStoppingService is the interface for earlystopping service.
 type EarlyStoppingService interface {
-	ShouldTrialStop(ctx context.Context, in *pb.ShouldTrialStopRequest) (*pb.ShouldTrialStopReply, error)
-	SetEarlyStoppingParameter(ctx context.Context, in *pb.SetEarlyStoppingParameterRequest) (*pb.SetEarlyStoppingParameterReply, error)
+	ShouldTrialStop(ctx context.Context, in *api.ShouldTrialStopRequest) (*api.ShouldTrialStopReply, error)
+	SetEarlyStoppingParameter(ctx context.Context, in *api.SetEarlyStoppingParameterRequest) (*api.SetEarlyStoppingParameterReply, error)
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	listener, err := net.Listen("tcp", suggestion.DefaultPort)
+	listener, err := net.Listen("tcp", earlystopping.DefaultPort)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}

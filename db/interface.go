@@ -92,7 +92,7 @@ func (d *db_conn) GetStudyConfig(id string) (*api.StudyConfig, error) {
 	row := d.db.QueryRow("SELECT * FROM studies WHERE id = ?", id)
 
 	study := new(api.StudyConfig)
-	var dummy_id, configs, suggestion_parameters, tags, metrics, command, mconf string
+	var dummy_id, configs, suggestion_parameters, early_stopping_parameters, tags, metrics, command, mconf string
 	err := row.Scan(&dummy_id,
 		&study.Name,
 		&study.Owner,
@@ -100,9 +100,10 @@ func (d *db_conn) GetStudyConfig(id string) (*api.StudyConfig, error) {
 		&study.OptimizationGoal,
 		&configs,
 		&study.SuggestAlgorithm,
-		&study.AutostopAlgorithm,
+		&study.EarlyStoppingAlgorithm,
 		&study.StudyTaskName,
 		&suggestion_parameters,
+		&early_stopping_parameters,
 		&tags,
 		&study.ObjectiveValueName,
 		&metrics,

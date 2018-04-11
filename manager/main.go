@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/kubeflow/hp-tuning/manager/worker_interface"
@@ -95,6 +96,7 @@ func (s *server) trialIteration(conf *pb.StudyConfig, study_id string, sCh study
 	defer s.wIF.CleanWorkers(study_id)
 	tm := time.NewTimer(1 * time.Second)
 	ei := 0
+	var err error
 	for _, ec := range conf.EarlyStoppingParameters {
 		if ec.Name == "CheckInterval" {
 			ei, err = strconv.Atoi(ec.Value)
@@ -104,9 +106,9 @@ func (s *server) trialIteration(conf *pb.StudyConfig, study_id string, sCh study
 		}
 	}
 	if ei == 0 {
-		ei == defaultEarlyStopInterval
+		ei = defaultEarlyStopInterval
 	}
-	estm := time.NewTimer(ei * time.Second)
+	estm := time.NewTimer(time.Duration(ei) * time.Second)
 	log.Printf("Study %v start.", study_id)
 	log.Printf("Study conf %v", conf)
 	for {
@@ -158,11 +160,11 @@ func (s *server) trialIteration(conf *pb.StudyConfig, study_id string, sCh study
 			} else {
 				if len(ret.Trials) > 0 {
 					for _, t := range ret.Trials {
-						s.CompleteTrial(context.Background(), &pb.CompleteTrialRequest{StudyId: study_id, TrialId: t.TrialID, IsComplete: false})
+						s.CompleteTrial(context.Background(), &pb.CompleteTrialRequest{StudyId: study_id, TrialId: t.TrialId, IsComplete: false})
 					}
 				}
 			}
-			estm.Reset(ei * time.Second)
+			estm.Reset(time.Duration(ei) * time.Second)
 		case <-sCh.stopCh:
 			log.Printf("Study %v is stopped.", study_id)
 			for _, t := range s.wIF.GetRunningTrials(study_id) {
@@ -311,19 +313,15 @@ func (s *server) SuggestTrials(ctx context.Context, in *pb.SuggestTrialsRequest)
 }
 
 func (s *server) CompleteTrial(ctx context.Context, in *pb.CompleteTrialRequest) (*pb.CompleteTrialReply, error) {
-	_, err := s.wIF.CompleteTrial(in.StudyId, in.TrialId, in.IsComplete)
+	err := s.wIF.CompleteTrial(in.StudyId, in.TrialId, in.IsComplete)
 	return &pb.CompleteTrialReply{}, err
 }
 
 func (s *server) EarlyStopping(ctx context.Context, in *pb.EarlyStoppingRequest) (*pb.EarlyStoppingReply, error) {
-	study, err := dbIf.GetStudyConfig(in.StudyId)
-	if err != nil {
-		return nil, err
-	}
 	if in.EarlyStoppingAlgorithm == "" || in.EarlyStoppingAlgorithm == "none" {
-		return &pb.EarlyStoppingReply{}
+		return &pb.EarlyStoppingReply{}, nil
 	}
-	conn, err := grpc.Dial("vizier-earlystopping-"+suggest_algo+":6789", grpc.WithInsecure())
+	conn, err := grpc.Dial("vizier-earlystopping-"+in.EarlyStoppingAlgorithm+":6789", grpc.WithInsecure())
 	if err != nil {
 		return &pb.EarlyStoppingReply{}, err
 	}
@@ -333,7 +331,7 @@ func (s *server) EarlyStopping(ctx context.Context, in *pb.EarlyStoppingRequest)
 	req := &pb.ShouldTrialStopRequest{StudyId: in.StudyId}
 	r, err := c.ShouldTrialStop(context.Background(), req)
 	if err != nil {
-		return &pb.SuggestTrialsReply{Completed: false}, err
+		return &pb.EarlyStoppingReply{}, err
 	}
 
 	// TODO: do async

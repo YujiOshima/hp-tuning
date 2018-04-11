@@ -262,7 +262,7 @@ message ShouldTrialStopReply {
 
 message SetEarlyStoppingParameterRequest {
 	string study_id = 1;
-    repeated EarlyStoppingParameter early_stopping__parameters =2;
+    repeated EarlyStoppingParameter early_stopping_parameters =2;
 }
 
 message SetEarlyStoppingParameterReply {

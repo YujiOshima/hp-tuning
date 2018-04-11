@@ -360,4 +360,5 @@ func (d *DlkWorkerInterface) CompleteTrial(studyId string, tID string, iscomplet
 			d.CompletedTrialList[studyId] = append(d.CompletedTrialList[studyId], t)
 		}
 	}
+	return nil
 }
