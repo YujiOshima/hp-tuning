@@ -10,20 +10,20 @@ import (
 )
 
 const (
-	manager = "192.168.99.100:30678"
+	manager = "192.168.100.100:30678"
 )
 
+//StudyConfig
 var studyConfig = api.StudyConfig{
-	Name:                          "grid-demo",
-	Owner:                         "katib",
-	OptimizationType:              api.OptimizationType_MAXIMIZE,
-	OptimizationGoal:              0.99,
-	DefaultSuggestionAlgorithm:    "grid",
-	DefaultEarlyStoppingAlgorithm: "medianstopping",
-	ObjectiveValueName:            "Validation-accuracy",
+	Name:               "random-demo",
+	Owner:              "katib",
+	OptimizationType:   api.OptimizationType_MAXIMIZE,
+	OptimizationGoal:   0.99,
+	ObjectiveValueName: "Validation-accuracy",
 	Metrics: []string{
 		"accuracy",
 	},
+	//Parameter Config
 	ParameterConfigs: &api.StudyConfig_ParameterConfigs{
 		Configs: []*api.ParameterConfig{
 			&api.ParameterConfig{
@@ -32,6 +32,14 @@ var studyConfig = api.StudyConfig{
 				Feasible: &api.FeasibleSpace{
 					Min: "0.03",
 					Max: "0.07",
+				},
+				Name:          "--initializer",
+				ParameterType: api.ParameterType_CATEGORICAL,
+				Feasible: &api.FeasibleSpace{
+					List: []string{
+						"uniform",
+						"xavier",
+					},
 				},
 			},
 		},
@@ -48,20 +56,15 @@ func main() {
 	createStudyreq := &api.CreateStudyRequest{
 		StudyConfig: &studyConfig,
 	}
+	//CreateStudy
 	createStudyreply, err := c.CreateStudy(context.Background(), createStudyreq)
 	if err != nil {
 		log.Fatalf("StudyConfig Error %v", err)
 	}
 	studyId := createStudyreply.StudyId
 	log.Printf("Study ID %s", studyId)
-	getStudyreq := &api.GetStudyRequest{
-		StudyId: studyId,
-	}
-	getStudyReply, err := c.GetStudy(context.Background(), getStudyreq)
-	if err != nil {
-		log.Fatalf("GetConfig Error %v", err)
-	}
-	log.Printf("Study ID %s StudyConf%v", studyId, getStudyReply.StudyConfig)
+
+	//GetSuggestion
 	getRandomSuggestRequest := &api.GetSuggestionsRequest{
 		StudyId:             studyId,
 		SuggestionAlgorithm: "random",
@@ -72,9 +75,12 @@ func main() {
 		log.Fatalf("GetSuggestion Error %v", err)
 	}
 	log.Printf("Get Random Suggestions %v", getRandomSuggestReply.Trials)
+
+	//RunTrials
 	workerIds := make([]string, len(getRandomSuggestReply.Trials))
 	workerParameter := make(map[string][]*api.Parameter)
 	for i, t := range getRandomSuggestReply.Trials {
+		//WorkerConfig
 		rtr := &api.RunTrialRequest{
 			StudyId: studyId,
 			TrialId: t.TrialId,
@@ -121,6 +127,8 @@ func main() {
 	}
 	for true {
 		time.Sleep(10 * time.Second)
+
+		//GetMetrics
 		getMetricsRequest := &api.GetMetricsRequest{
 			StudyId:   studyId,
 			WorkerIds: workerIds,
@@ -130,6 +138,8 @@ func main() {
 			log.Printf("GetMetErr %v", err)
 			continue
 		}
+
+		//GetMetrics loop
 		for _, mls := range getMetricsReply.MetricsLogSets {
 			if len(mls.MetricsLogs) > 0 {
 				log.Printf("WorkerID %s :", mls.WorkerId)
@@ -147,6 +157,8 @@ func main() {
 						saveModelRequest.Model.Metrics = append(saveModelRequest.Model.Metrics, &api.Metrics{Name: ml.Name, Value: ml.Values[len(ml.Values)-1]})
 					}
 				}
+
+				//SaveModel
 				_, err = c.SaveModel(context.Background(), saveModelRequest)
 				if err != nil {
 					log.Fatalf("SaveModel Error %v", err)
